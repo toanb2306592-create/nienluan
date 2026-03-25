@@ -125,6 +125,10 @@
               <input v-model="newProduct.quantity" type="number" />
             </div>
             <div class="form-group full-width">
+              <label>Mô tả chi tiết</label>
+              <textarea v-model="newProduct.description" placeholder="Nhập mô tả sản phẩm..." rows="3" class="custom-textarea"></textarea>
+            </div>
+            <div class="form-group full-width">
               <label>Ảnh sản phẩm</label>
               <input type="file" @change="handleFileUpload" ref="fileInput" />
             </div>
@@ -200,6 +204,44 @@
       </div>
     </div>
 
+    <div v-if="editingProduct" class="modal-overlay" @click.self="editingProduct = null">
+      <div class="modal-content" style="max-width: 700px;">
+        <h3>Chỉnh sửa sản phẩm</h3>
+        <div class="grid-form">
+          <div class="form-group">
+            <label>Tên sản phẩm</label>
+            <input v-model="editingProduct.productName" />
+          </div>
+          <div class="form-group">
+            <label>Danh mục</label>
+            <select v-model="editingProduct.categoryId">
+              <option v-for="c in categories" :key="c._id" :value="c._id">{{ c.name }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Giá (VNĐ)</label>
+            <input v-model="editingProduct.price" type="number" />
+          </div>
+          <div class="form-group">
+            <label>Số lượng</label>
+            <input v-model="editingProduct.quantity" type="number" />
+          </div>
+          <div class="form-group full-width">
+            <label>Mô tả sản phẩm</label>
+            <textarea v-model="editingProduct.description" rows="5" class="custom-textarea"></textarea>
+          </div>
+          <div class="form-group full-width">
+            <label>Thay đổi ảnh (Để trống nếu giữ nguyên)</label>
+            <input type="file" @change="handleEditFileUpload" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="editingProduct = null">Hủy</button>
+          <button class="btn btn-primary" @click="saveProductEdit">Lưu thay đổi</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="selectedUser" class="modal-overlay" @click.self="selectedUser = null">
       <div class="modal-content">
         <h3>Chi tiết người dùng</h3>
@@ -209,7 +251,7 @@
         <div class="modal-footer"><button class="btn btn-secondary" @click="selectedUser = null">Đóng</button></div>
       </div>
     </div>
-    </div>
+  </div>
 </template>
 
 <script setup>
@@ -220,7 +262,7 @@ import {
   getUsers, deleteUser,
   getProducts, createProduct, deleteProduct, updateProduct,
   getCategories, createCategory, deleteCategory, updateCategory,
-  getAllOrders, updateOrderStatus // Giả sử bạn đã thêm 2 hàm này vào adminService.js
+  getAllOrders, confirmOrder, confirmShipping // Import thêm các hàm mới
 } from "@/services/adminService";
 
 const active = ref("dashboard");
@@ -233,7 +275,7 @@ const products = ref([]);
 const categories = ref([]);
 const orders = ref([]);
 
-const newProduct = ref({ productName: "", price: 0, quantity: 0, categoryId: "" });
+const newProduct = ref({ productName: "", price: 0, quantity: 0, categoryId: "", description: "" });
 const selectedFile = ref(null);
 const newCategory = ref({ name: "", description: "" });
 
@@ -302,12 +344,24 @@ const translateStatus = (s) => {
   const map = { pending: 'Chờ duyệt', confirmed: 'Đã duyệt', shipping: 'Đang giao', completed: 'Hoàn tất', cancelled: 'Đã hủy' };
   return map[s] || s;
 };
+
+// Hàm xử lý duyệt/giao hàng đã được sửa để gọi đúng API backend
 const handleUpdateOrderStatus = async (id, status) => {
-  if (confirm(`Xác nhận chuyển trạng thái sang ${translateStatus(status)}?`)) {
+  const statusName = translateStatus(status);
+  if (confirm(`Xác nhận chuyển trạng thái sang ${statusName}?`)) {
     try {
-      await updateOrderStatus(id, { status });
+      if (status === 'confirmed') {
+        await confirmOrder(id);
+      } else if (status === 'shipping') {
+        await confirmShipping(id);
+      }
+      
+      alert("Cập nhật trạng thái thành công!");
       loadData();
-    } catch (err) { alert("Lỗi cập nhật đơn hàng"); }
+    } catch (err) { 
+      console.error(err);
+      alert(err.response?.data?.message || "Lỗi cập nhật đơn hàng"); 
+    }
   }
 };
 
@@ -318,6 +372,7 @@ const removeUser = async (id) => { if (confirm("Xóa người dùng này?")) { a
 // --- PRODUCT ---
 const handleFileUpload = (e) => selectedFile.value = e.target.files[0];
 const handleEditFileUpload = (e) => editFile.value = e.target.files[0];
+
 const addProduct = async () => {
   if (!newProduct.value.categoryId) return alert("Vui lòng chọn danh mục!");
   try {
@@ -326,17 +381,24 @@ const addProduct = async () => {
     fd.append("price", newProduct.value.price);
     fd.append("quantity", newProduct.value.quantity);
     fd.append("categoryId", newProduct.value.categoryId);
+    fd.append("description", newProduct.value.description || "");
     if (selectedFile.value) fd.append("image", selectedFile.value);
+    
     await createProduct(fd);
-    newProduct.value = { productName: "", price: 0, quantity: 0, categoryId: "" };
+    newProduct.value = { productName: "", price: 0, quantity: 0, categoryId: "", description: "" };
     selectedFile.value = null;
     if (fileInput.value) fileInput.value.value = "";
     loadData();
     alert("Thêm thành công!");
   } catch (err) { alert("Lỗi thêm SP"); }
 };
+
 const removeProduct = async (id) => { if (confirm("Xóa SP?")) { await deleteProduct(id); loadData(); } };
-const openEditProduct = (p) => editingProduct.value = { ...p, categoryId: p.categoryId?._id || p.categoryId };
+
+const openEditProduct = (p) => {
+  editingProduct.value = { ...p, categoryId: p.categoryId?._id || p.categoryId };
+};
+
 const saveProductEdit = async () => {
   try {
     const fd = new FormData();
@@ -344,10 +406,15 @@ const saveProductEdit = async () => {
     fd.append("price", editingProduct.value.price);
     fd.append("quantity", editingProduct.value.quantity);
     fd.append("categoryId", editingProduct.value.categoryId);
+    fd.append("description", editingProduct.value.description || "");
     if (editFile.value) fd.append("image", editFile.value);
+
     await updateProduct(editingProduct.value._id, fd);
-    editingProduct.value = null; loadData(); alert("Cập nhật thành công!");
-  } catch (err) { console.error(err); }
+    editingProduct.value = null; 
+    editFile.value = null;
+    loadData(); 
+    alert("Cập nhật thành công!");
+  } catch (err) { alert("Lỗi cập nhật sản phẩm"); }
 };
 
 // --- CATEGORY ---
@@ -359,10 +426,6 @@ const handleAddCategory = async () => {
 };
 const handleRemoveCategory = async (id) => { if (confirm("Xóa DM?")) { await deleteCategory(id); loadData(); } };
 const openEditCategory = (c) => editingCategory.value = { ...c };
-const saveCategoryEdit = async () => {
-  await updateCategory(editingCategory.value._id, editingCategory.value);
-  editingCategory.value = null; loadData();
-};
 
 const formatPrice = (p) => Number(p).toLocaleString("vi-VN") + " đ";
 const getImageUrl = (path) => {

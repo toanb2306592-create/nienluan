@@ -1,21 +1,25 @@
 <template>
-  <div class="navbar">
-    <button 
-      class="nav-item" 
-      :class="{ active: route.path === '/products' }" 
-      @click="router.push('/products')"
-    >
-      Tất cả sản phẩm
-    </button>
+  <div class="navbar-wrapper">
+    <div class="navbar-container">
+      <button 
+        class="nav-item" 
+        :class="{ active: route.path === '/products' }" 
+        @click="router.push('/products')"
+      >
+        <i class="fas fa-th-large"></i>
+        <span>Tất cả sản phẩm</span>
+      </button>
 
-    <button
-      v-for="item in menu"
-      :key="item._id"
-      @click="goCategory(item._id)"
-      :class="['nav-item', { active: route.params.id == item._id }]"
-    >
-      {{ item.categoryName || item.name }}
-    </button>
+      <button
+        v-for="item in menu"
+        :key="item._id"
+        @click="goCategory(item._id)"
+        :class="['nav-item', { active: route.params.id == item._id }]"
+      >
+        <i class="fas fa-tag"></i>
+        <span>{{ item.categoryName || item.name }}</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -43,75 +47,101 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.navbar {
+/* Import lại FontAwesome để đồng bộ icon với Header */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+
+.navbar-wrapper {
   background: #ffffff;
-  padding: 15px 40px;
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  /* Đã đổi: Đường viền dưới hơi xanh nhẹ để hài hòa */
-  border-bottom: 1px solid rgba(22, 70, 104, 0.1); 
-  box-shadow: 0 4px 12px rgba(22, 70, 104, 0.04);
+  border-bottom: 1px solid #f1f5f9;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
   position: sticky;
-  top: 70px; /* Tùy chỉnh theo chiều cao Header của bạn để nó dính dưới Header */
-  z-index: 99;
+  top: 64px; /* Khớp với chiều cao Header của bạn */
+  z-index: 999;
+}
+
+.navbar-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 40px;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* IE 10+ */
+}
+
+/* Ẩn thanh cuộn Chrome/Safari */
+.navbar-container::-webkit-scrollbar {
+  display: none;
 }
 
 .nav-item {
-  background: #f8fafc; /* Màu nền xám xanh rất nhạt */
-  border: 1px solid #e2e8f0;
-  color: #64748b; /* Màu chữ slate xám chuyên nghiệp */
-  padding: 8px 22px;
-  border-radius: 50px; 
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #475569; /* Màu Slate nhẹ nhàng */
+  padding: 8px 20px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   font-size: 14px;
-  font-weight: 500;
-  outline: none;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
-/* Hiệu ứng khi đưa chuột vào (Hover) */
+.nav-item i {
+  font-size: 13px;
+  color: #94a3b8;
+  transition: color 0.25s;
+}
+
+/* Hover: Nhẹ nhàng, chuyên nghiệp */
 .nav-item:hover {
-  background: rgba(22, 70, 104, 0.05); /* Nền xanh nhạt */
-  border-color: #164668; /* Viền màu chủ đạo */
-  color: #164668; /* Chữ màu chủ đạo */
-  transform: translateY(-2px);
+  background: #f1f5f9;
+  color: #164668;
 }
 
-/* Hiệu ứng khi đang chọn (Active) */
+.nav-item:hover i {
+  color: #164668;
+}
+
+/* Active: Đậm chất thương hiệu Moon Mart */
 .nav-item.active {
-  background: #164668; /* ĐÃ ĐỔI: Màu chủ đạo */
+  background: #164668;
   color: #ffffff;
   border-color: #164668;
-  font-weight: 600;
-  box-shadow: 0 6px 15px rgba(22, 70, 104, 0.25);
+  box-shadow: 0 4px 12px rgba(22, 70, 104, 0.2);
 }
 
-/* Hiệu ứng nhấn (Active state của trình duyệt) */
+.nav-item.active i {
+  color: #ffffff;
+}
+
+/* Hiệu ứng bấm */
 .nav-item:active {
-  transform: scale(0.95);
+  transform: scale(0.96);
 }
 
-/* Responsive cho điện thoại */
+/* Mobile Responsive */
 @media (max-width: 768px) {
-  .navbar {
-    padding: 12px 15px;
-    gap: 8px;
-    justify-content: flex-start; /* Cho phép cuộn ngang nếu quá nhiều danh mục */
-    overflow-x: auto;
-    white-space: nowrap;
-    -ms-overflow-style: none;  /* Ẩn thanh cuộn IE */
-    scrollbar-width: none;  /* Ẩn thanh cuộn Firefox */
+  .navbar-wrapper {
+    top: 0; /* Có thể điều chỉnh tùy layout mobile */
   }
   
-  .navbar::-webkit-scrollbar {
-    display: none; /* Ẩn thanh cuộn Chrome */
+  .navbar-container {
+    padding: 10px 15px;
+    gap: 8px;
   }
 
   .nav-item {
-    padding: 6px 18px;
+    padding: 7px 16px;
     font-size: 13px;
-    flex-shrink: 0; /* Đảm bảo nút không bị co lại trên mobile */
+    border-radius: 10px;
+    background: #f8fafc; /* Hiện rõ nút hơn trên mobile */
+    border: 1px solid #e2e8f0;
   }
 }
 </style>

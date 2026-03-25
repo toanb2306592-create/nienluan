@@ -5,7 +5,6 @@ const path = require("path");
 // Hàm xóa ảnh cũ
 const deleteFile = (filePath) => {
     if (filePath) {
-        // Đường dẫn từ controller ra thư mục gốc /uploads
         const fullPath = path.join(__dirname, "../../", filePath);
         if (fs.existsSync(fullPath)) {
             try {
@@ -17,6 +16,7 @@ const deleteFile = (filePath) => {
     }
 };
 
+// 1. Lấy tất cả sản phẩm
 exports.getAllProducts = async (req, res) => {
     try {
         const products = await Product.find().populate("categoryId");
@@ -26,6 +26,20 @@ exports.getAllProducts = async (req, res) => {
     }
 };
 
+// 2. MỚI: Lấy chi tiết 1 sản phẩm theo ID (Dùng cho trang ProductDetail)
+exports.getProductById = async (req, res) => {
+    try {
+        const product = await Product.findById(req.params.id).populate("categoryId");
+        if (!product) {
+            return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
+        }
+        res.json(product);
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi Server: " + error.message });
+    }
+};
+
+// 3. Tạo sản phẩm mới
 exports.createProduct = async (req, res) => {
     try {
         const { productName, price, quantity, categoryId, description } = req.body;
@@ -40,6 +54,7 @@ exports.createProduct = async (req, res) => {
     }
 };
 
+// 4. Cập nhật sản phẩm
 exports.updateProduct = async (req, res) => {
     try {
         const oldProduct = await Product.findById(req.params.id);
@@ -58,6 +73,7 @@ exports.updateProduct = async (req, res) => {
     }
 };
 
+// 5. Xóa sản phẩm
 exports.deleteProduct = async (req, res) => {
     try {
         const product = await Product.findById(req.params.id);
@@ -71,4 +87,5 @@ exports.deleteProduct = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
-};
+}; 
+

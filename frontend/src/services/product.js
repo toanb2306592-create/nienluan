@@ -10,9 +10,14 @@ export const getProductsByCategory = (id) => {
   return api.get(`/products?categoryId=${id}`);
 };
 
-// SỬA TẠI ĐÂY: Nhận 1 object chứa userId, productId, quantity
+// Lấy CHI TIẾT 1 sản phẩm theo ID
+export const getProductById = (id) => {
+  return api.get(`/products/${id}`); 
+};
+
+// Thêm vào giỏ hàng
 export const addToCart = (payload) => {
-  const token = localStorage.getItem("token"); // Lấy token trực tiếp ở đây cho tiện
+  const token = localStorage.getItem("token"); 
   
   return api.post(
     "/cart",

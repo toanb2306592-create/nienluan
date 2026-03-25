@@ -202,20 +202,24 @@ exports.confirmShipping = async (req, res) => {
 };
 
 // 📦 USER nhận hàng
+// Cập nhật hàm confirmReceived trong order.controller.js
 exports.confirmReceived = async (req, res) => {
     try {
+        // Tìm đơn hàng của đúng user đang đăng nhập và đang ở trạng thái shipping
         const order = await Order.findOne({
             _id: req.params.id,
             userId: req.user.id
         });
 
-        if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
-        if (order.status !== "shipping") return res.status(400).json({ message: "Chưa giao hàng" });
+        if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng hoặc đơn không thuộc về bạn" });
+        if (order.status !== "shipping") return res.status(400).json({ message: "Đơn hàng chưa ở trạng thái đang giao" });
 
         order.status = "completed";
         order.receivedAt = new Date();
+        order.paymentStatus = "paid"; // Thường nhận hàng xong sẽ chuyển thành đã thanh toán (nếu là COD)
         await order.save();
 
+        // Ghi lại lịch sử
         await StatusHistory.create({
             order: order._id,
             status: "completed",
@@ -223,7 +227,7 @@ exports.confirmReceived = async (req, res) => {
             role: "user"
         });
 
-        res.json({ message: "Đã nhận hàng", order });
+        res.json({ message: "Xác nhận đã nhận hàng thành công", order });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
