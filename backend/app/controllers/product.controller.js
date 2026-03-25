@@ -1,70 +1,74 @@
 const Product = require("../models/product.model");
+const fs = require("fs");
+const path = require("path");
 
+// Hàm xóa ảnh cũ
+const deleteFile = (filePath) => {
+    if (filePath) {
+        // Đường dẫn từ controller ra thư mục gốc /uploads
+        const fullPath = path.join(__dirname, "../../", filePath);
+        if (fs.existsSync(fullPath)) {
+            try {
+                fs.unlinkSync(fullPath);
+            } catch (err) {
+                console.error("Không thể xóa file ảnh:", err.message);
+            }
+        }
+    }
+};
 
 exports.getAllProducts = async (req, res) => {
     try {
         const products = await Product.find().populate("categoryId");
-        res.status(200).json(products);
+        res.json(products);
     } catch (error) {
-        res.status(500).json({ message: "Lỗi khi lấy danh sách sản phẩm", error: error.message });
-    }
-};
-
-exports.getProductById = async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id);
-
-        if (!product) {
-            return res.status(404).json({ message: "Không tìm thấy sản phẩm" });
-        }
-
-        res.status(200).json(product);
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi khi lấy sản phẩm", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 };
 
 exports.createProduct = async (req, res) => {
     try {
-        const product = new Product(req.body);
-        const savedProduct = await product.save();
-
-        res.status(201).json(savedProduct);
+        const { productName, price, quantity, categoryId, description } = req.body;
+        const image = req.file ? `uploads/products/${req.file.filename}` : "";
+        const newProduct = new Product({ 
+            productName, price, quantity, categoryId, description, image 
+        });
+        await newProduct.save();
+        res.status(201).json(newProduct);
     } catch (error) {
-        res.status(400).json({ message: "Lỗi khi tạo sản phẩm", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 };
 
-// Cập nhật sản phẩm
 exports.updateProduct = async (req, res) => {
     try {
-        const product = await Product.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true }
-        );
+        const oldProduct = await Product.findById(req.params.id);
+        if (!oldProduct) return res.status(404).json({ message: "Không tìm thấy SP" });
 
-        if (!product) {
-            return res.status(404).json({ message: "Không tìm thấy sản phẩm để cập nhật" });
+        const updateData = { ...req.body };
+        if (req.file) {
+            deleteFile(oldProduct.image); // Xóa ảnh cũ
+            updateData.image = `uploads/products/${req.file.filename}`;
         }
 
-        res.status(200).json(product);
+        const updated = await Product.findByIdAndUpdate(req.params.id, updateData, { new: true });
+        res.json(updated);
     } catch (error) {
-        res.status(400).json({ message: "Lỗi khi cập nhật sản phẩm", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 };
 
-// Xóa sản phẩm
 exports.deleteProduct = async (req, res) => {
     try {
-        const product = await Product.findByIdAndDelete(req.params.id);
-
-        if (!product) {
-            return res.status(404).json({ message: "Không tìm thấy sản phẩm để xóa" });
+        const product = await Product.findById(req.params.id);
+        if (product) {
+            deleteFile(product.image); // Xóa ảnh vật lý
+            await Product.findByIdAndDelete(req.params.id);
+            res.json({ message: "Đã xóa sản phẩm và ảnh" });
+        } else {
+            res.status(404).json({ message: "Sản phẩm không tồn tại" });
         }
-
-        res.status(200).json({ message: "Xóa sản phẩm thành công" });
     } catch (error) {
-        res.status(500).json({ message: "Lỗi khi xóa sản phẩm", error: error.message });
+        res.status(500).json({ message: error.message });
     }
 };

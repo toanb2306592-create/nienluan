@@ -1,11 +1,18 @@
 const Order = require("../models/order.model");
+const Cart = require("../models/cart.model");
+const Product = require("../models/product.model");
+const Address = require("../models/address.model");
+const StatusHistory = require("../models/status_history.model");
+const mongoose = require("mongoose");
 
-
+// 📦 GET ALL (ADMIN)
 exports.getAllOrders = async (req, res) => {
     try {
         const orders = await Order.find()
-            .populate("userId")
-            .populate("items.productId");
+            .populate("userId", "-password")
+            .populate("items.productId")
+            .populate("addressId")
+            .sort({ createdAt: -1 });
 
         res.status(200).json(orders);
     } catch (error) {
@@ -16,11 +23,19 @@ exports.getAllOrders = async (req, res) => {
     }
 };
 
+// 📦 GET BY ID
 exports.getOrderById = async (req, res) => {
     try {
-        const order = await Order.findById(req.params.id)
-            .populate("userId")
-            .populate("items.productId");
+        const id = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "ID không hợp lệ" });
+        }
+
+        const order = await Order.findById(id)
+            .populate("userId", "-password")
+            .populate("items.productId")
+            .populate("addressId");
 
         if (!order) {
             return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
@@ -35,66 +50,231 @@ exports.getOrderById = async (req, res) => {
     }
 };
 
-exports.createOrder = async (req, res) => {
+// 🔥 CHECKOUT (Đã bỏ Transaction để tương thích máy cá nhân)
+exports.checkout = async (req, res) => {
     try {
-        const { userId, items } = req.body;
+        const userId = req.user.id; 
+        const { addressId, selectedItems } = req.body;
+
+        if (!selectedItems || selectedItems.length === 0) {
+            return res.status(400).json({ message: "Chưa chọn sản phẩm" });
+        }
+
+        const address = await Address.findOne({ _id: addressId, userId });
+        if (!address) {
+            return res.status(404).json({ message: "Địa chỉ không hợp lệ hoặc đã bị xóa" });
+        }
 
         let totalAmount = 0;
-        items.forEach(item => {
-            totalAmount += item.price * item.quantity;
-        });
+        let orderItems = [];
+
+        // Kiểm tra tồn kho và chuẩn bị dữ liệu
+        for (let item of selectedItems) {
+            const product = await Product.findById(item.productId);
+
+            if (!product) {
+                return res.status(404).json({ message: `Sản phẩm ${item.productId} không tồn tại` });
+            }
+
+            // Lưu ý: Sử dụng product.quantity hoặc product.stock tùy theo Model của bạn
+            // Ở đây mình giữ theo logic req.body của bạn là .quantity
+            if (product.quantity < item.quantity) {
+                return res.status(400).json({ message: `Sản phẩm ${product.productName} không đủ hàng` });
+            }
+
+            totalAmount += product.price * item.quantity;
+
+            orderItems.push({
+                productId: product._id,
+                productName: product.productName,
+                price: product.price,
+                quantity: item.quantity,
+                image: product.image
+            });
+
+            // TRỪ KHO
+            product.quantity -= item.quantity;
+            await product.save();
+        }
 
         const order = new Order({
             userId,
-            items,
-            totalAmount
+            addressId,
+            shippingAddress: {
+                fullName: address.fullName,
+                phone: address.phone,
+                address: address.address
+            },
+            items: orderItems,
+            totalAmount,
+            status: "pending",
+            paymentStatus: "unpaid"
         });
 
         const savedOrder = await order.save();
 
-        res.status(201).json(savedOrder);
-    } catch (error) {
-        res.status(400).json({
-            message: "Lỗi khi tạo đơn hàng",
-            error: error.message
+        // Tạo lịch sử trạng thái
+        await StatusHistory.create({
+            order: savedOrder._id,
+            status: "pending",
+            changedBy: userId,
+            role: "user"
         });
-    }
-};
 
-exports.updateOrder = async (req, res) => {
-    try {
-        const order = await Order.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true }
+        // Xóa sản phẩm đã chọn khỏi giỏ hàng
+        await Cart.updateOne(
+            { userId },
+            {
+                $pull: {
+                    items: {
+                        productId: { $in: selectedItems.map(i => i.productId) }
+                    }
+                }
+            }
         );
 
-        if (!order) {
-            return res.status(404).json({ message: "Không tìm thấy đơn hàng để cập nhật" });
-        }
+        res.status(201).json({
+            message: "Đặt hàng thành công",
+            order: savedOrder
+        });
 
-        res.status(200).json(order);
     } catch (error) {
-        res.status(400).json({
-            message: "Lỗi khi cập nhật đơn hàng",
+        console.error("Checkout error:", error);
+        res.status(500).json({
+            message: "Lỗi khi checkout",
             error: error.message
         });
     }
 };
 
-exports.deleteOrder = async (req, res) => {
+// ✅ ADMIN duyệt đơn
+exports.confirmOrder = async (req, res) => {
     try {
-        const order = await Order.findByIdAndDelete(req.params.id);
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+        if (order.status !== "pending") return res.status(400).json({ message: "Chỉ duyệt đơn pending" });
 
-        if (!order) {
-            return res.status(404).json({ message: "Không tìm thấy đơn hàng để xóa" });
+        order.status = "confirmed";
+        order.confirmedAt = new Date();
+        await order.save();
+
+        await StatusHistory.create({
+            order: order._id,
+            status: "confirmed",
+            changedBy: req.user.id,
+            role: "admin"
+        });
+
+        res.json({ message: "Đã duyệt đơn", order });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 🚚 ADMIN giao hàng
+exports.confirmShipping = async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.id);
+        if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+        if (order.status !== "confirmed") return res.status(400).json({ message: "Chưa duyệt đơn" });
+
+        const now = new Date();
+        const deliveryDate = new Date();
+        deliveryDate.setDate(now.getDate() + 1);
+
+        order.status = "shipping";
+        order.shippingAt = now;
+        order.deliveryDate = deliveryDate;
+
+        await order.save();
+
+        await StatusHistory.create({
+            order: order._id,
+            status: "shipping",
+            changedBy: req.user.id,
+            role: "admin"
+        });
+
+        res.json({ message: "Đang giao", order });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// 📦 USER nhận hàng
+exports.confirmReceived = async (req, res) => {
+    try {
+        const order = await Order.findOne({
+            _id: req.params.id,
+            userId: req.user.id
+        });
+
+        if (!order) return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+        if (order.status !== "shipping") return res.status(400).json({ message: "Chưa giao hàng" });
+
+        order.status = "completed";
+        order.receivedAt = new Date();
+        await order.save();
+
+        await StatusHistory.create({
+            order: order._id,
+            status: "completed",
+            changedBy: req.user.id,
+            role: "user"
+        });
+
+        res.json({ message: "Đã nhận hàng", order });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// ❌ HỦY ĐƠN (CÓ TRẢ KHO - Đã bỏ Transaction)
+exports.cancelOrder = async (req, res) => {
+    try {
+        const order = await Order.findOne({
+            _id: req.params.id,
+            userId: req.user.id
+        });
+
+        if (!order) return res.status(404).json({ message: "Không tìm thấy đơn" });
+        if (order.status !== "pending") return res.status(400).json({ message: "Không thể hủy" });
+
+        // 🔥 TRẢ LẠI KHO
+        for (const item of order.items) {
+            const product = await Product.findById(item.productId);
+            if (product) {
+                product.quantity += item.quantity;
+                await product.save();
+            }
         }
 
-        res.status(200).json({ message: "Xóa đơn hàng thành công" });
-    } catch (error) {
-        res.status(500).json({
-            message: "Lỗi khi xóa đơn hàng",
-            error: error.message
+        order.status = "cancelled";
+        await order.save();
+
+        await StatusHistory.create({
+            order: order._id,
+            status: "cancelled",
+            changedBy: req.user.id,
+            role: "user"
         });
+
+        res.json({ message: "Đã hủy đơn", order });
+
+    } catch (error) {
+        res.status(400).json({ error: error.message });
+    }
+};
+
+// 📦 USER xem đơn
+exports.getMyOrders = async (req, res) => {
+    try {
+        const orders = await Order.find({ userId: req.user.id })
+            .populate("items.productId")
+            .sort({ createdAt: -1 });
+
+        res.json(orders);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 };

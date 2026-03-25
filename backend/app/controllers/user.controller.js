@@ -1,87 +1,69 @@
 const User = require("../models/user.model");
+const jwt = require("jsonwebtoken");
 
-// Lấy tất cả user
-exports.getAllUsers = async (req, res) => {
-    try {
-        const users = await User.find();
-        res.status(200).json(users);
-    } catch (error) {
-        res.status(500).json({
-            message: "Lỗi khi lấy danh sách user",
-            error: error.message
-        });
-    }
-};
-
-// Lấy user theo ID
-exports.getUserById = async (req, res) => {
-    try {
-        const user = await User.findById(req.params.id);
-
-        if (!user) {
-            return res.status(404).json({ message: "Không tìm thấy user" });
-        }
-
-        res.status(200).json(user);
-    } catch (error) {
-        res.status(500).json({
-            message: "Lỗi khi lấy user",
-            error: error.message
-        });
-    }
-};
-
-// Tạo user
+// [POST] /api/users (Register)
 exports.createUser = async (req, res) => {
     try {
-        const user = new User(req.body);
-        const savedUser = await user.save();
+        // ✅ CHỈ tạo instance, Model sẽ tự Hash mật khẩu khi gọi .save()
+        const user = new User(req.body); 
+        const saved = await user.save();
 
-        res.status(201).json(savedUser);
-    } catch (error) {
-        res.status(400).json({
-            message: "Lỗi khi tạo user",
-            error: error.message
-        });
-    }
-};
-
-// Cập nhật user
-exports.updateUser = async (req, res) => {
-    try {
-        const user = await User.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true }
+        const token = jwt.sign(
+            { id: saved._id, role: saved.role },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
         );
 
-        if (!user) {
-            return res.status(404).json({ message: "Không tìm thấy user để cập nhật" });
-        }
-
-        res.status(200).json(user);
+        res.status(201).json({ user: saved, token });
     } catch (error) {
-        res.status(400).json({
-            message: "Lỗi khi cập nhật user",
-            error: error.message
+        res.status(400).json({ 
+            message: error.code === 11000 ? "Email đã tồn tại" : "Đăng ký thất bại" 
         });
     }
 };
 
-// Xóa user
+// [PUT] /api/users/:id
+exports.updateUser = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ message: "Không tìm thấy user" });
+
+        // Cập nhật dữ liệu
+        if (req.body.password) user.password = req.body.password;
+        if (req.body.name) user.name = req.body.name;
+        if (req.body.phone) user.phone = req.body.phone;
+
+        // Lưu lại (Kích hoạt lại Middleware hash mật khẩu nếu password thay đổi)
+        await user.save();
+        res.json({ message: "Cập nhật thành công", user });
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+exports.getMe = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select("-password");
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find().select("-password");
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 exports.deleteUser = async (req, res) => {
     try {
-        const user = await User.findByIdAndDelete(req.params.id);
-
-        if (!user) {
-            return res.status(404).json({ message: "Không tìm thấy user để xóa" });
-        }
-
-        res.status(200).json({ message: "Xóa user thành công" });
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ message: "Xóa thành công" });
     } catch (error) {
-        res.status(500).json({
-            message: "Lỗi khi xóa user",
-            error: error.message
-        });
+        res.status(500).json({ message: error.message });
     }
 };

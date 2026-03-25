@@ -1,43 +1,89 @@
+<script setup>
+import { ref, onMounted, onUnmounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import Header from "@/components/Header.vue";
+import Footer from "@/components/Footer.vue";
+
+const route = useRoute();
+const router = useRouter();
+
+// --- CẤU HÌNH ---
+const timeout = ref(null);
+const offlineTimeout = ref(null);
+const INACTIVITY_TIME = 3 * 60 * 1000; // 3 phút
+const OFFLINE_TIME = 3 * 60 * 1000;    // 3 phút offline
+
+// --- HÀM ĐĂNG XUẤT ---
+const logout = (message) => {
+  localStorage.removeItem("user");
+  localStorage.removeItem("token");
+  alert(message);
+  router.push("/");
+};
+
+// --- HÀM TỰ ĐỘNG ĐĂNG XUẤT KHI KHÔNG THAO TÁC ---
+const resetTimer = () => {
+  if (timeout.value) clearTimeout(timeout.value);
+  const user = localStorage.getItem("user");
+  if (user) {
+    timeout.value = setTimeout(() => logout("Phiên đăng nhập đã hết hạn do không có thao tác trong 3 phút."), INACTIVITY_TIME);
+  }
+};
+
+// --- HÀM KIỂM TRA TRẠNG THÁI ONLINE ---
+const handleOffline = () => {
+  // Bắt đầu đếm thời gian offline
+  if (offlineTimeout.value) clearTimeout(offlineTimeout.value);
+  const user = localStorage.getItem("user");
+  if (user) {
+    offlineTimeout.value = setTimeout(() => logout("Bạn đã offline quá 3 phút, vui lòng đăng nhập lại."), OFFLINE_TIME);
+  }
+};
+
+const handleOnline = () => {
+  // Khi online trở lại, reset bộ đếm offline
+  if (offlineTimeout.value) clearTimeout(offlineTimeout.value);
+  resetTimer();
+};
+
+const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
+
+onMounted(() => {
+  // Lắng nghe thao tác người dùng
+  events.forEach(event => window.addEventListener(event, resetTimer));
+  resetTimer(); // Kích hoạt lần đầu
+
+  // Lắng nghe trạng thái online/offline
+  window.addEventListener('offline', handleOffline);
+  window.addEventListener('online', handleOnline);
+});
+
+onUnmounted(() => {
+  // Dọn dẹp sự kiện
+  events.forEach(event => window.removeEventListener(event, resetTimer));
+  window.removeEventListener('offline', handleOffline);
+  window.removeEventListener('online', handleOnline);
+  
+  if (timeout.value) clearTimeout(timeout.value);
+  if (offlineTimeout.value) clearTimeout(offlineTimeout.value);
+});
+</script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
+  <Header v-if="!route.path.startsWith('/admin')" />
+  
+  <router-view />
 
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
-  </header>
-
-  <main>
-    <TheWelcome />
-  </main>
+  <Footer v-if="!route.path.startsWith('/admin')" />
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
+<style>
+body {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 400;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+h1, h2, h3 {
+  font-weight: 600;
 }
 </style>

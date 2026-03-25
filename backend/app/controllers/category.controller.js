@@ -1,7 +1,7 @@
 const Category = require("../models/category.model");
 const mongoose = require("mongoose");
 
-
+// GET ALL
 exports.getAllCategories = async (req, res) => {
     try {
         const categories = await Category.find();
@@ -14,7 +14,7 @@ exports.getAllCategories = async (req, res) => {
     }
 };
 
-
+// GET BY ID
 exports.getCategoryById = async (req, res) => {
     try {
         const id = req.params.id;
@@ -38,17 +38,18 @@ exports.getCategoryById = async (req, res) => {
     }
 };
 
+// CREATE ✅ FIX name
 exports.createCategory = async (req, res) => {
     try {
-        const { categoryName, description } = req.body;
+        const { name, description } = req.body;
 
-        if (!categoryName) {
+        if (!name) {
             return res.status(400).json({ message: "Tên category là bắt buộc" });
         }
 
         const newCategory = new Category({
-            categoryName,
-            description
+            name,
+            description: description || ""
         });
 
         const saved = await newCategory.save();
@@ -62,7 +63,7 @@ exports.createCategory = async (req, res) => {
     }
 };
 
-// Cập nhật category
+// UPDATE ✅ FIX sạch dữ liệu
 exports.updateCategory = async (req, res) => {
     try {
         const id = req.params.id;
@@ -71,9 +72,11 @@ exports.updateCategory = async (req, res) => {
             return res.status(400).json({ message: "ID không hợp lệ" });
         }
 
+        const { name, description } = req.body;
+
         const updated = await Category.findByIdAndUpdate(
             id,
-            req.body,
+            { name, description },
             { new: true }
         );
 
@@ -90,6 +93,7 @@ exports.updateCategory = async (req, res) => {
     }
 };
 
+// DELETE
 exports.deleteCategory = async (req, res) => {
     try {
         const id = req.params.id;
