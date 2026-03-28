@@ -234,7 +234,7 @@ const toggleSelectAll = (e) => {
   selectedProductIds.value = e.target.checked ? cart.value.items.filter(i => i.productId).map(i => i.productId._id) : [];
 };
 
-// SỬA TẠI ĐÂY: Chuyển về trang chủ sau khi thành công
+
 const handleCheckout = async () => {
   const itemsToShip = cart.value.items
     .filter(item => item.productId && selectedProductIds.value.includes(item.productId._id))

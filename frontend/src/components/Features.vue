@@ -40,7 +40,7 @@ const list = [
 <style scoped>
 .features-wrapper {
   padding: 60px 20px;
-  background-color: #f0f4f7; /* Màu nền xám xanh nhạt đồng bộ với Cart/Footer */
+  background-color: #f0f4f7;
 }
 
 .features {
@@ -56,7 +56,6 @@ const list = [
   padding: 40px 25px;
   border-radius: 16px;
   text-align: center;
-  /* Đổ bóng nhẹ với một chút sắc xanh của #164668 */
   box-shadow: 0 10px 30px rgba(22, 70, 104, 0.05); 
   transition: all 0.3s ease;
   border: 1px solid rgba(22, 70, 104, 0.05);
@@ -64,7 +63,7 @@ const list = [
   overflow: hidden;
 }
 
-/* Đường line trang trí phía dưới hiện lên khi hover */
+
 .item::after {
   content: "";
   position: absolute;
@@ -98,7 +97,7 @@ const list = [
 }
 
 .item:hover .icon-circle {
-  background: rgba(22, 70, 104, 0.1); /* Nhấn nhẹ màu chủ đạo khi hover */
+  background: rgba(22, 70, 104, 0.1); 
 }
 
 .icon {
@@ -107,7 +106,6 @@ const list = [
 
 h3 {
   font-size: 1.2rem;
-  /* ĐÃ ĐỔI: Màu chủ đạo cho tiêu đề */
   color: #164668; 
   margin-bottom: 12px;
   font-weight: 700;

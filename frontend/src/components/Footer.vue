@@ -16,7 +16,7 @@
 
       <div class="contact">
         <h3>Liên hệ</h3>
-        <p>📍 123 Đường Số 1, TP. HCM</p>
+        <p>📍 123 Đường Số 1, TP. Cần Thơ</p>
         <p>📧 support@moonmart.com</p>
         <p>📞 Hotline: 1900 1234</p>
       </div>
@@ -34,7 +34,6 @@
   background: #ffffff;
   color: #333;
   margin-top: 60px;
-  /* Đã đổi: Thanh kẻ trên cùng dùng màu chủ đạo */
   border-top: 4px solid #164668;
 }
 
@@ -52,7 +51,6 @@
   gap: 12px;
   font-size: 22px;
   font-weight: 800;
-  /* Đã đổi: Màu chủ đạo */
   color: #164668;
   cursor: pointer;
 }
@@ -63,7 +61,6 @@
 }
 
 .footer h3 {
-  /* Đã đổi: Tiêu đề cột dùng màu chủ đạo */
   color: #164668;
   margin-bottom: 18px;
   font-size: 18px;
@@ -76,7 +73,6 @@
   display: block;
   width: 35px;
   height: 3px;
-  /* Đã đổi: Gạch chân tiêu đề */
   background: #164668;
   margin-top: 5px;
 }
@@ -90,7 +86,6 @@
 }
 
 .footer p:hover {
-  /* Đã đổi: Hover ra màu chủ đạo và đẩy nhẹ sang phải */
   color: #164668;
   padding-left: 8px;
   font-weight: 500;
@@ -99,7 +94,6 @@
 .copyright {
   text-align: center;
   padding: 20px;
-  /* Đã đổi: Nền copyright xanh đậm, chữ trắng cho sang trọng */
   background: #164668;
   font-size: 14px;
   color: #ffffff;

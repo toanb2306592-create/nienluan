@@ -17,7 +17,11 @@ const OFFLINE_TIME = 3 * 60 * 1000;    // 3 phút offline
 const logout = (message) => {
   localStorage.removeItem("user");
   localStorage.removeItem("token");
-  alert(message);
+  
+  // Phát sự kiện thông báo cho các component khác
+  window.dispatchEvent(new Event("user-logged-out"));
+  
+  if (message) alert(message);
   router.push("/");
 };
 

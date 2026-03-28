@@ -3,8 +3,9 @@
     <h2><i class="fas fa-box"></i> Đơn hàng hiện tại</h2>
 
     <div v-if="activeOrders.length === 0" class="empty-orders">
-      <p>Bạn không có đơn hàng nào đang trong quá trình xử lý.</p>
-      <button @click="router.push('/')">Tiếp tục mua sắm</button>
+      <div class="empty-icon">📦</div>
+      <p>Bạn không có đơn hàng nào đang xử lý.</p>
+      <button class="btn-shop" @click="router.push('/')">Tiếp tục mua sắm</button>
     </div>
 
     <div v-else class="order-list">
@@ -31,7 +32,7 @@
             <button 
               v-if="order.status === 'shipping'" 
               class="btn-confirm" 
-              @click="handleConfirmReceived(order._id)"
+              @click="handleConfirmReceived(order)"
             >
               <i class="fas fa-check-circle"></i> Đã nhận được hàng
             </button>
@@ -56,6 +57,50 @@
         </transition>
       </div>
     </div>
+
+    <div v-if="showReviewModal" class="modal-overlay">
+      <div class="review-modal">
+        <div class="modal-header">
+          <h3><i class="fas fa-star text-warning"></i> Đánh giá sản phẩm</h3>
+          <button class="close-btn" @click="showReviewModal = false">&times;</button>
+        </div>
+        
+        <p class="modal-subtitle">Cảm ơn bạn! Hãy chia sẻ cảm nhận về sản phẩm nhé.</p>
+
+        <div class="review-scroll-area">
+          <div v-for="item in reviewData.items" :key="item.productId" class="review-item-card">
+            <div class="item-info">
+              <img 
+                :src="item.image ? `http://localhost:3000${item.image}` : 'https://via.placeholder.com/50'" 
+                class="item-thumb" 
+                @error="(e) => e.target.src = 'https://via.placeholder.com/50'" 
+              />
+              <span class="item-name">{{ item.productName }}</span>
+            </div>
+
+            <div class="star-rating">
+              <i v-for="star in 5" :key="star" 
+                 class="fa-star" 
+                 :class="star <= item.rating ? 'fas active' : 'far'"
+                 @click="item.rating = star"></i>
+              <span class="rating-text">{{ getRatingLabel(item.rating) }}</span>
+            </div>
+
+            <textarea 
+              v-model="item.comment" 
+              placeholder="Sản phẩm có tốt không? (Không bắt buộc)..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-later" @click="showReviewModal = false">Để sau</button>
+          <button class="btn-submit" @click="submitAllReviews" :disabled="isSubmitting">
+            {{ isSubmitting ? 'Đang gửi...' : 'Gửi đánh giá' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -63,11 +108,16 @@
 import { ref, onMounted, computed } from "vue";
 import { useRouter } from "vue-router";
 import * as OrderService from "@/services/order"; 
+import * as ReviewService from "@/services/review"; 
 
 const router = useRouter();
 const orders = ref([]);
 const selectedOrderId = ref(null);
 const currentStatusHistory = ref([]);
+
+const showReviewModal = ref(false);
+const isSubmitting = ref(false);
+const reviewData = ref({ orderId: '', items: [] });
 
 const fetchData = async () => {
   try {
@@ -77,36 +127,65 @@ const fetchData = async () => {
 };
 
 const activeOrders = computed(() => {
-  // Chỉ hiện đơn hàng chưa hoàn thành và chưa hủy
-  return orders.value.filter(o => o.status !== 'delivered' && o.status !== 'completed' && o.status !== 'cancelled');
+  return orders.value.filter(o => !['delivered', 'completed', 'cancelled'].includes(o.status));
 });
 
-const getExpectedDate = (dateString) => {
-  const date = new Date(dateString);
-  date.setDate(date.getDate() + 3);
-  return date.toLocaleDateString('vi-VN');
-};
-
-const fetchStatusHistory = async (id) => {
-  if (selectedOrderId.value === id) {
-    selectedOrderId.value = null;
-    return;
-  }
-  try {
-    const res = await OrderService.getOrderDetails(id); 
-    currentStatusHistory.value = res.data.status_history || []; 
-    selectedOrderId.value = id;
-  } catch (err) { alert("Lỗi tải hành trình"); }
-};
-
-const handleConfirmReceived = async (id) => {
-  if (confirm("Xác nhận bạn đã nhận hàng và hài lòng với sản phẩm?")) {
+const handleConfirmReceived = async (order) => {
+  if (confirm("Xác nhận bạn đã nhận hàng thành công?")) {
     try {
-      await OrderService.confirmReceived(id);
-      alert("Cập nhật thành công!");
-      fetchData();
+      await OrderService.confirmReceived(order._id);
+      
+      reviewData.value = {
+        orderId: order._id,
+        items: order.items.map(item => ({
+          // Đảm bảo lấy ID từ ._id nếu productId là object đã populate
+          productId: item.productId._id || item.productId,
+          productName: item.productName || "Sản phẩm",
+          image: item.image,
+          rating: 5,
+          comment: ""
+        }))
+      };
+
+      await fetchData(); 
+      showReviewModal.value = true;
     } catch (err) { alert("Lỗi hệ thống"); }
   }
+};
+
+const submitAllReviews = async () => {
+  isSubmitting.value = true;
+  const userData = JSON.parse(localStorage.getItem("user"));
+  
+  if (!userData || !userData._id) {
+    alert("Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.");
+    return;
+  }
+
+  try {
+    for (const item of reviewData.value.items) {
+      await ReviewService.createReview({
+        productId: item.productId,
+        orderId: reviewData.value.orderId,
+        userId: userData._id,
+        userName: userData.name || userData.username,
+        rating: item.rating,
+        comment: item.comment
+      });
+    }
+    
+    alert("Cảm ơn bạn đã đánh giá!");
+    showReviewModal.value = false;
+  } catch (err) {
+    alert("Lỗi: " + (err.response?.data?.message || "Không thể gửi đánh giá"));
+  } finally {
+    isSubmitting.value = false;
+  }
+};
+
+const getRatingLabel = (r) => {
+  const labels = { 1: 'Tệ', 2: 'Không tốt', 3: 'Bình thường', 4: 'Tốt', 5: 'Tuyệt vời' };
+  return labels[r];
 };
 
 const formatPrice = (p) => p ? p.toLocaleString("vi-VN") + " đ" : "0 đ";
@@ -115,31 +194,50 @@ const formatStatus = (s) => {
   return map[s] || s;
 };
 
+const getExpectedDate = (dateString) => {
+  const date = new Date(dateString);
+  date.setDate(date.getDate() + 3);
+  return date.toLocaleDateString('vi-VN');
+};
+
+const fetchStatusHistory = async (id) => {
+  if (selectedOrderId.value === id) { selectedOrderId.value = null; return; }
+  try {
+    const res = await OrderService.getOrderDetails(id); 
+    currentStatusHistory.value = res.data.status_history || []; 
+    selectedOrderId.value = id;
+  } catch (err) { alert("Lỗi tải hành trình"); }
+};
+
 onMounted(fetchData);
 </script>
 
 <style scoped>
-.orders-container { max-width: 800px; margin: 40px auto; padding: 0 20px; }
-.order-card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
-.top { display: flex; justify-content: space-between; margin-bottom: 10px; }
-.status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.orders-container { max-width: 850px; margin: 40px auto; padding: 0 20px; }
+.order-card { background: white; border-radius: 16px; padding: 25px; margin-bottom: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid #f1f5f9; }
+.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.status-badge { padding: 6px 14px; border-radius: 50px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
 .status-badge.pending { background: #fff7ed; color: #c2410c; }
 .status-badge.shipping { background: #eff6ff; color: #1d4ed8; }
 .status-badge.confirmed { background: #f0fdf4; color: #166534; }
-
-.expected-date { font-size: 14px; color: #64748b; margin: 8px 0; }
-.order-actions { display: flex; gap: 12px; margin-top: 15px; }
-
-.btn-history { background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; cursor: pointer; }
-.btn-confirm { background: #164668; color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-
-.status-history-section { margin-top: 20px; padding: 20px; background: #fafafa; border-radius: 12px; }
-.timeline { border-left: 2px solid #e2e8f0; margin-left: 10px; padding-left: 20px; }
-.timeline-item { position: relative; margin-bottom: 15px; }
-.time-point { position: absolute; left: -27px; top: 4px; width: 12px; height: 12px; background: #164668; border-radius: 50%; border: 2px solid #fff; }
-.h-status { font-weight: 700; display: block; font-size: 14px; }
-.h-date { font-size: 12px; color: #94a3b8; }
-
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.order-actions { display: flex; gap: 12px; margin-top: 20px; }
+.btn-history { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+.btn-confirm { background: #164668; color: white; border: none; padding: 10px 20px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(4px); }
+.review-modal { background: white; width: 95%; max-width: 550px; padding: 30px; border-radius: 24px; animation: slideUp 0.3s ease-out; }
+@keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.review-scroll-area { max-height: 400px; overflow-y: auto; padding-right: 10px; margin: 15px 0; }
+.review-item-card { padding: 20px; border: 1px solid #f1f5f9; border-radius: 16px; margin-bottom: 15px; background: #fdfdfd; }
+.item-info { display: flex; align-items: center; gap: 15px; margin-bottom: 10px; }
+.item-thumb { width: 50px; height: 50px; border-radius: 8px; object-fit: cover; }
+.star-rating { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.star-rating i { font-size: 24px; cursor: pointer; color: #e2e8f0; }
+.star-rating i.active { color: #ffc107; }
+textarea { width: 100%; height: 80px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 12px; resize: none; font-size: 14px; }
+.modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+.btn-later { background: #f1f5f9; border: none; padding: 10px 25px; border-radius: 12px; cursor: pointer; }
+.btn-submit { background: #164668; color: white; border: none; padding: 10px 25px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+.empty-orders { text-align: center; padding: 50px; background: white; border-radius: 20px; }
+.close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #94a3b8; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; }
 </style>

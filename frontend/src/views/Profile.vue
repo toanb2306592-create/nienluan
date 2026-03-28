@@ -118,12 +118,12 @@ const cancelEdit = () => {
 const handleLogout = () => {
   localStorage.clear();
   router.push("/");
-  window.location.reload(); // Để Header cập nhật trạng thái đã đăng xuất
+  window.location.reload();
 };
 </script>
 
 <style scoped>
-/* Giữ nguyên phần Style cũ của mình, nó đã rất sạch rồi */
+
 .action-section { margin-top: 30px; }
 .profile-layout { background: #f4f7f6; min-height: 100vh; padding-bottom: 50px; }
 .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }

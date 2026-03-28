@@ -11,7 +11,6 @@
     </div>
 
     <div class="right">
-      
       <div v-if="!user" class="action-btn" @click="showModal = true">
         <span class="icon">👤</span> 
         <b>Đăng nhập</b>
@@ -50,10 +49,9 @@
       <div class="cart-box" @click="handleCartClick">
         <div class="cart-icon-wrapper">
           <span class="icon">🛒</span>
-          </div>
+        </div>
         <div class="cart-info">
           <b>Giỏ hàng</b>
-          <small>0 đ</small>
         </div>
       </div>
     </div>
@@ -67,14 +65,14 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
-import { useRouter, useRoute } from "vue-router";
+import { useRouter } from "vue-router";
 import LoginModal from "./LoginModal.vue";
 
 const showModal = ref(false);
 const user = ref(null);
 const router = useRouter();
-const route = useRoute();
 
+// --- LOGIC KIỂM TRA USER ---
 const checkUserStatus = () => {
   const u = localStorage.getItem("user");
   if (u) {
@@ -90,10 +88,10 @@ const handleCloseModal = () => {
   checkUserStatus();
 };
 
+// --- LOGIC TỰ ĐỘNG ĐĂNG XUẤT (DÙNG CHUNG VỚI APP.VUE) ---
 const timeout = ref(null);
 const INACTIVITY_TIME = 3 * 60 * 1000; 
 const OFFLINE_TIME = 3 * 60 * 1000;    
-
 const offlineStartTime = ref(null);
 let offlineInterval = null;
 
@@ -105,7 +103,15 @@ const performLogout = (message) => {
   router.push("/");
 };
 
-const handleLogoutManual = () => performLogout();
+// Đăng xuất thủ công
+const handleLogoutManual = () => {
+  performLogout();
+};
+
+// Hàm xử lý khi nhận tín hiệu từ App.vue (Quan trọng)
+const onExternalLogout = () => {
+  user.value = null;
+};
 
 const resetTimer = () => {
   if (!navigator.onLine) return;
@@ -143,6 +149,9 @@ const events = ['mousemove', 'mousedown', 'keypress', 'scroll', 'touchstart'];
 
 onMounted(() => {
   checkUserStatus();
+  
+  // Lắng nghe tín hiệu từ App.vue (khi App.vue hết 3 phút)
+  window.addEventListener("user-logged-out", onExternalLogout);
   events.forEach(event => window.addEventListener(event, resetTimer));
   window.addEventListener('offline', handleOffline);
   window.addEventListener('online', handleOnline);
@@ -150,9 +159,12 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  // Dọn dẹp listener
+  window.removeEventListener("user-logged-out", onExternalLogout);
   events.forEach(event => window.removeEventListener(event, resetTimer));
   window.removeEventListener('offline', handleOffline);
   window.removeEventListener('online', handleOnline);
+  
   if (timeout.value) clearTimeout(timeout.value);
   if (offlineInterval) clearInterval(offlineInterval);
 });
@@ -272,7 +284,6 @@ const handleCartClick = () => {
 .cart-box { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .cart-info { display: flex; flex-direction: column; line-height: 1.2; }
 .cart-info b { font-size: 14px; color: #1e293b; }
-.cart-info small { font-size: 12px; color: #e53935; font-weight: 700; }
 
 .action-btn { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 15px; }
 .icon { font-size: 22px; }

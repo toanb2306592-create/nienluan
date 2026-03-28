@@ -3,28 +3,31 @@ const Order = require("../models/order.model");
 const Product = require("../models/product.model");
 const mongoose = require("mongoose");
 
-// ⭐ Tạo review (Lưu ý: Đang để req.body.userId để bạn test không cần Token)
 exports.createReview = async (req, res) => {
     try {
         const { productId, rating, comment, orderId, userId, userName } = req.body;
 
-        // 1. Kiểm tra đơn hàng đã xong chưa
+        // 1. Kiểm tra đơn hàng (Nới lỏng trạng thái để dễ test: shipping, delivered, completed)
         const order = await Order.findOne({
             _id: orderId,
             userId: userId,
-            status: "completed"
+            status: { $in: ["completed", "delivered", "shipping"] }
         });
 
         if (!order) {
-            return res.status(400).json({ message: "Bạn chưa mua hoặc đơn hàng chưa hoàn thành" });
+            return res.status(400).json({ message: "Đơn hàng không hợp lệ hoặc chưa hoàn thành" });
         }
 
-        // 2. Kiểm tra sản phẩm có trong đơn hàng không
-        const hasProduct = order.items.some(item => item.productId.toString() === productId);
+        // 2. So sánh ID sản phẩm (Dùng toString() để chắc chắn khớp kiểu dữ liệu)
+        const hasProduct = order.items.some(item => 
+            item.productId.toString() === productId.toString()
+        );
+
         if (!hasProduct) {
             return res.status(400).json({ message: "Sản phẩm không có trong đơn này" });
         }
 
+        // 3. Lấy tên sản phẩm thực tế từ DB
         const product = await Product.findById(productId);
 
         const review = new Review({
@@ -32,20 +35,19 @@ exports.createReview = async (req, res) => {
             product: productId,
             order: orderId,
             userName: userName || "Người dùng",
-            productName: product.productName,
-            rating,
-            comment
+            productName: product ? product.productName : "Sản phẩm",
+            rating: Number(rating),
+            comment: comment || ""
         });
 
         await review.save();
         res.status(201).json({ message: "Đánh giá thành công", review });
 
     } catch (error) {
-        res.status(500).json({ message: "Lỗi tạo review", error: error.message });
+        res.status(500).json({ message: "Lỗi hệ thống", error: error.message });
     }
 };
 
-// ⭐ Lấy danh sách review của 1 sản phẩm (Fix tên hàm cho khớp Route)
 exports.getReviewsByProduct = async (req, res) => {
     try {
         const reviews = await Review.find({ product: req.params.productId }).sort({ createdAt: -1 });
@@ -55,7 +57,6 @@ exports.getReviewsByProduct = async (req, res) => {
     }
 };
 
-// ⭐ Tính rating trung bình (Dùng cho trang chủ/danh sách SP)
 exports.getAverageRating = async (req, res) => {
     try {
         const result = await Review.aggregate([

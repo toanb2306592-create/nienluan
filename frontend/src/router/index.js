@@ -5,7 +5,7 @@ import Cart from "../views/Cart.vue";
 import Login from "../views/Login.vue";
 import Category from "../views/Category.vue";
 import Admin from "../admin/Admin.vue";
-import Order from "../views/Order.vue";
+import Order from "../views/Order.vue"; 
 
 const routes = [
   { path: "/", component: Home },
@@ -18,9 +18,8 @@ const routes = [
   {
     path: '/orders',
     name: 'UserOrders',
-    component: () => import('@/views/Order.vue')
+    component: Order 
   },
-  // ĐƯỜNG DẪN MỚI CHO LỊCH SỬ
   {
     path: '/status-history',
     name: 'StatusHistory',
@@ -52,7 +51,6 @@ const router = createRouter({
   routes,
 });
 
-// 🔐 ROUTER GUARD (Giữ nguyên logic của bạn)
 router.beforeEach((to, from, next) => {
   let user = null;
   try {
